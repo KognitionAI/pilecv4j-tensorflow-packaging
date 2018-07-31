@@ -9,15 +9,17 @@
   <properties>
     <tensorflow-version>${project.version}</tensorflow-version>
 
-    <!-- Relative to the child projects -->
-    <tensorflow-lib-dir>${WORKING_DIRECTORY}/target/bin</tensorflow-lib-dir>
+    <!-- This is defaulted to the same value from fromscratch.sh but is overridden by package.sh -->
+    <!-- It's also relative to the child projects where it's used -->
+    <fromscratch.working.dir>../installed/container</fromscratch.working.dir>
+    <tensorflow.artifacts.directory>${fromscratch.working.dir}/target/bin</tensorflow.artifacts.directory>
   </properties>
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>tensorflow</groupId>
-        <artifactId>tensorflow</artifactId>
+      <dependency> <!-- this is the dependency installed using the install jar file -->
+        <groupId>com.jiminger</groupId>
+        <artifactId>manually-installed-tensorflow</artifactId>
         <version>${tensorflow-version}</version>
       </dependency>
     </dependencies>

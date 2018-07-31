@@ -11,8 +11,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>tensorflow</groupId>
-      <artifactId>tensorflow</artifactId>
+      <groupId>com.jiminger</groupId>
+      <artifactId>manually-installed-tensorflow</artifactId>
       <optional>true</optional>
     </dependency>
   </dependencies>

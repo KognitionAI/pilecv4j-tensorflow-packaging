@@ -11,7 +11,7 @@
   <packaging>pom</packaging>
 
   <properties>
-    <tensorflow-jar-path>../target/container/target/bin/libtensorflow.jar</tensorflow-jar-path>
+    <tensorflow-jar-path>${tensorflow.artifacts.directory}/libtensorflow.jar</tensorflow-jar-path>
   </properties>
 
   <build>
@@ -31,8 +31,8 @@
               <generatePom>true</generatePom>
               <packaging>jar</packaging>
               <version>${tensorflow-version}</version>
-              <groupId>tensorflow</groupId>
-              <artifactId>tensorflow</artifactId>
+              <groupId>com.jiminger</groupId>
+              <artifactId>manually-installed-tensorflow</artifactId>
             </configuration>
           </execution>
         </executions>

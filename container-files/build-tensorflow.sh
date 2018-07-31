@@ -125,9 +125,10 @@ pip3 install /tmp/tensorflow_pkg/tensorflow-*.whl
 apt-get clean
 apt-get autoclean
 
-# collect the results so they can be extracted from the final image
+# collect the results and put them outside of the container
 cp /tmp/tensorflow_pkg/tensorflow-*.whl "$CONTAINER_BUILD_TARGET_DIRECTORY"
 cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow.jar "$CONTAINER_BUILD_TARGET_DIRECTORY"
 cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow_jni.so "$CONTAINER_BUILD_TARGET_DIRECTORY"
+cp /usr/local/cuda-9.2/samples/1_Utilities/deviceQuery/deviceQuery "$CONTAINER_BUILD_TARGET_DIRECTORY"
 
 rm -rf /tmp/tensorflow_pkg

@@ -52,8 +52,7 @@ TENSORFLOW_VERSION=`cat "$CONTAINER_DIR"/tensorflow.version`
 
 $MVN versions:set -DnewVersion=$TENSORFLOW_VERSION
 
-export WORKING_DIRECTORY
-$MVN $MVN_TARGET
+$MVN -Dfromscratch.working.dir="$WORKING_DIRECTORY" clean $MVN_TARGET
 
 $MVN versions:set -DnewVersion=0
 
