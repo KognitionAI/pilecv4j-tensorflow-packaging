@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <groupId>com.jiminger</groupId>
+  <artifactId>tensorflow-packaging</artifactId>
+  <version>0</version>
+  <packaging>pom</packaging>
+  <modelVersion>4.0.0</modelVersion>
+
+  <properties>
+    <tensorflow-version>${project.version}</tensorflow-version>
+
+    <!-- Relative to the child projects -->
+    <tensorflow-lib-dir>${WORKING_DIRECTORY}/target/bin</tensorflow-lib-dir>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>tensorflow</groupId>
+        <artifactId>tensorflow</artifactId>
+        <version>${tensorflow-version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <modules>
+    <module>install-jar</module>
+    <module>package-native</module>
+  </modules>
+  
+</project>
