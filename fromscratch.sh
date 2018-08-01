@@ -13,11 +13,14 @@ usage() {
     echo "[MVN=/path/to/mvn/mvn] $0 [options]" 
     echo " Options:"
     echo "    -v:  tensorflow version. e.g. \"-v 1.9.0\" This defaults to $TENSORFLOW_VERSION"
-    echo "    -w:  working directory, where the final container files will be written."
+    echo "    -w:  working directory, where the final container files will be written. This defaults"
+    ehco "           to a subdirectory called \"installed/container\" of the directory the script is in."
     echo "    -c:  tensorflow compute caps to build. E.g. \"-c \" This defaults to $TENSORFLOW_COMPUTE_CAPS"
     echo "           NOTE: this is NOT the tensorflow build defaut. 1.8.0 and 1.9.0 tensorflow default"
     echo "           compute caps are \"3.5,5.2\". To build these specifcy \"-c '3.5,5.2'\""
-    echo "    -b:  bazel version to build tensorflow with. e.g. \"-b 0.15.2\" This defaults to $BAZEL_VERSION" 
+    echo "    -b:  bazel version to build tensorflow with. e.g. \"-b 0.15.2\" This defaults to $BAZEL_VERSION"
+    echo "    --container=$BASE_CONTAINER : use the named container. The default is shown."
+    echo "    -g:  compile TensorFlow with debug symbols."
     echo ""
     echo "    if MVN isn't set then the script assumes \"mvn\" is on the command line PATH"
 
@@ -34,9 +37,19 @@ BAZEL_VERSION=0.15.2
 CUDA_VERSION=9.2
 WORKING_DIRECTORY="$SCRIPTDIR"/installed/container
 #WORKING_DIRECTORY=/tmp/container
+BASE_CONTAINER="nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04"
+TENSORFLOW_DEBUG_SYMBOLS=
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --container=*)
+            BASE_CONTAINER="$(echo "$1" | sed -e "s/^--container=//1")"
+            shift
+            ;;
+        "-g")
+            TENSORFLOW_DEBUG_SYMBOLS=true
+            shift
+            ;;
         "-w")
             WORKING_DIRECTORY=$2
             shift
@@ -110,11 +123,15 @@ fi
 mkdir -p "$WORKING_DIRECTORY"
 cp -r container-files/* "$WORKING_DIRECTORY"
 
+if [ "$TENSORFLOW_DEBUG_SYMBOLS" = "true" ]; then
+    export TENSORFLOW_DEBUG_SYMBOLS
+fi
+
 $SUDO docker run --runtime=nvidia -it --name="$CONTAINER_NAME" \
        -v "$SCRIPTDIR"/target/container:/tmp/files \
        -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
        -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
        -e BAZEL_VERSION=$BAZEL_VERSION \
-       nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04 /tmp/files/build-tensorflow.sh
+       $BASE_CONTAINER /tmp/files/build-tensorflow.sh
 
 ./package.sh
