@@ -117,7 +117,9 @@ export TF_SET_ANDROID_WORKSPACE=0
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/extras/CUPTI/lib64
 
 ./configure
-bazel build --config=opt --config=cuda --config=monolithic //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni
+
+# "--copt=-O -c dbg -c opt" <- these are debug options
+bazel build --copt=-O -c dbg -c opt --config=opt --config=cuda --config=monolithic //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni
 
 # Build the python packages and install them
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg
