@@ -14,7 +14,7 @@ usage() {
     echo " Options:"
     echo "    -v:  tensorflow version. e.g. \"-v 1.9.0\" This defaults to $TENSORFLOW_VERSION"
     echo "    -w:  working directory, where the final container files will be written. This defaults"
-    ehco "           to a subdirectory called \"installed/container\" of the directory the script is in."
+    echo "           to a subdirectory called \"installed/container\" of the directory the script is in."
     echo "    -c:  tensorflow compute caps to build. E.g. \"-c \" This defaults to $TENSORFLOW_COMPUTE_CAPS"
     echo "           NOTE: this is NOT the tensorflow build defaut. 1.8.0 and 1.9.0 tensorflow default"
     echo "           compute caps are \"3.5,5.2\". To build these specifcy \"-c '3.5,5.2'\""
@@ -92,6 +92,10 @@ else
     echo "Assuming that you can run 'docker' without sudo since you're in the 'docker' group."
 fi
 
+cd "$WORKING_DIRECTORY"
+ABS_WORKING_DIR="$(pwd -P)"
+cd -
+
 set +e
 $SUDO type docker >/dev/null 2>&1
 if [ $? -ne 0 ]; then
@@ -117,18 +121,22 @@ fi
 # move the files we're going to map into the container into target since there will also be
 #  files written there once the build finishes.
 if [ -d "$WORKING_DIRECTORY" ]; then
+    # it's possible that this fails because it has files owned by root
+    set +e
     rm -rf "$WORKING_DIRECTORY" >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Need to remove the working directory using sudo."
+        sudo rm -rf "$WORKING_DIRECTORY" >/dev/null 2>&1
+    fi
+    set -e
 fi
 
 mkdir -p "$WORKING_DIRECTORY"
 cp -r container-files/* "$WORKING_DIRECTORY"
 
-if [ "$TENSORFLOW_DEBUG_SYMBOLS" = "true" ]; then
-    export TENSORFLOW_DEBUG_SYMBOLS
-fi
-
 $SUDO docker run --runtime=nvidia -it --name="$CONTAINER_NAME" \
-       -v "$SCRIPTDIR"/target/container:/tmp/files \
+       -v "$ABS_WORKING_DIR":/tmp/files \
+       -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
        -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
        -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
        -e BAZEL_VERSION=$BAZEL_VERSION \
