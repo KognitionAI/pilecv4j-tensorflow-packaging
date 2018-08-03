@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # =============================================================================
 # Preamble
@@ -22,6 +22,11 @@ usage() {
     echo ""
     echo "    -g:  compile TensorFlow with debug symbols."
     echo "    --container=$BASE_CONTAINER : use the named container. The default is shown."
+    echo "    --just-build: This will assume the docker container has already been prepped and an image of the"
+    echo "       preped system has been created. This is done automatically by the script so you're safe using this"
+    echo "       if you've already run the build once or even cancelled it after the setup. If you're playing with"
+    echo "       different options then once the preped image built, using --just-build will allow subsequent runs"
+    echo "       to progress faster."
     echo "    --skip-packaging: Skip the packaging step. That is, only build the tensorflow libraries but"
     echo "       don't package them in a jar file for use with net.dempsy.util.library.NativeLivbraryLoader"
     echo "    --local_resources availableRAM,availableCPU,availableIO : Note the underscore. The value given"
@@ -38,6 +43,15 @@ usage() {
     fi
 }
 
+removeContainer() {
+    set -e
+    WAS_RUNNING=$($SUDO docker ps -aq --filter=name="$1")
+    if [ "$WAS_RUNNING" != "" ]; then
+        echo "Removing previous container \"$1\" that's no longer running."
+        $SUDO docker rm "$1"
+    fi
+}
+
 SKIPP=
 TENSORFLOW_VERSION=1.9.0
 TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
@@ -50,6 +64,7 @@ TENSORFLOW_DEBUG_SYMBOLS=
 LOCAL_RESOURCES_OPT=
 LOCAL_RESOURCES=
 DOCKER_RUN_OPT="-it"
+JUST_BUILD=
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -89,6 +104,10 @@ while [ $# -gt 0 ]; do
             DOCKER_RUN_OPT="-d"
             shift
             ;;
+        "--just-build")
+            JUST_BUILD=true
+            shift
+            ;;
         "--local_resources")
             LOCAL_RESOURCES_OPT="--local_resources"
             LOCAL_RESOURCES=$2
@@ -104,6 +123,15 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+# check to make sure that if we're running the build in the background, we're skipping the packaging.
+if [ "$DOCKER_RUN_OPT" = "-d" ]; then
+    if [ "$SKIPP" != "true" ]; then
+        echo "ERROR: You cannot background the build without also skipping the packaging by specifying --skip-packaging."
+        usage
+    fi
+fi
+
 
 CONTAINER_NAME=tensorflow_${TENSORFLOW_VERSION}_build
 
@@ -133,12 +161,6 @@ if [ "$RUNNING" != "" ]; then
     exit 1
 fi
 
-WAS_RUNNING=$($SUDO docker ps -aq --filter=name=$CONTAINER_NAME)
-if [ "$WAS_RUNNING" != "" ]; then
-    echo "Removing previous container that's no longer running."
-    $SUDO docker rm $CONTAINER_NAME
-fi
-
 # move the files we're going to map into the container into target since there will also be
 #  files written there once the build finishes.
 if [ -d "$WORKING_DIRECTORY" ]; then
@@ -159,15 +181,49 @@ cd -
 
 cp -r container-files/* "$WORKING_DIRECTORY"
 
-$SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$CONTAINER_NAME" \
-       -v "$ABS_WORKING_DIR":/tmp/files \
-       -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
-       -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
-       -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
-       -e LOCAL_RESOURCES=$LOCAL_RESOURCES \
-       -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
-       -e BAZEL_VERSION=$BAZEL_VERSION \
-       $BASE_CONTAINER /tmp/files/build-tensorflow.sh
+BUILD_IMAGE="$CONTAINER_NAME"
+BUILD_CONTAINER="$CONTAINER_NAME"ing
+
+if [ "$JUST_BUILD" != "true" ]; then
+    # if there's a saved off prevous build prep, then we need to remove
+    # that container.
+    removeContainer "$BUILD_CONTAINER"
+    removeContainer "$CONTAINER_NAME"
+
+    $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$CONTAINER_NAME" \
+          -v "$ABS_WORKING_DIR":/tmp/files \
+          -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
+          -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
+          -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
+          -e LOCAL_RESOURCES=$LOCAL_RESOURCES \
+          -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
+          -e BAZEL_VERSION=$BAZEL_VERSION \
+          -e BUILD_PHASES="dosetup" \
+          $BASE_CONTAINER /tmp/files/build-tensorflow.sh
+
+    # now we will build an image from the current container state.
+    echo "Saving off prepared container..."
+    $SUDO docker commit "$CONTAINER_NAME" "$BUILD_IMAGE"
+    echo "...done."
+fi
+
+# check if the image exists
+if [ "$(docker images | egrep "^$BUILD_IMAGE ")" = "" ]; then
+    echo "ERROR: The prepared image for building isn't available. Please run without the --just-build flag"
+    exit 1
+fi
+
+removeContainer "$BUILD_CONTAINER"
+$SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
+      -v "$ABS_WORKING_DIR":/tmp/files \
+      -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
+      -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
+      -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
+      -e LOCAL_RESOURCES=$LOCAL_RESOURCES \
+      -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
+      -e BAZEL_VERSION=$BAZEL_VERSION \
+      -e BUILD_PHASES="doconfigure,dobuild,docleanup" \
+      "$BUILD_IMAGE" /tmp/files/build-tensorflow.sh
 
 if [ "$SKIPP" != "true" ]; then
     ./package.sh

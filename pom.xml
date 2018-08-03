@@ -13,11 +13,21 @@
     <!-- It's also relative to the child projects where it's used -->
     <fromscratch.working.dir>../installed/container</fromscratch.working.dir>
     <tensorflow.artifacts.directory>${fromscratch.working.dir}/target/bin</tensorflow.artifacts.directory>
+
+    <tf-packaging.distribution.repo.id>ossrh</tf-packaging.distribution.repo.id>
+    <tf-packaging.distribution.repo.url>https://oss.sonatype.org/content/repositories/snapshots/</tf-packaging.distribution.repo.url>
   </properties>
+  
+  <distributionManagement>
+    <repository>
+      <id>${tf-packaging.distribution.repo.id}</id>
+      <url>${tf-packaging.distribution.repo.url}</url>
+    </repository>
+  </distributionManagement>
 
   <dependencyManagement>
     <dependencies>
-      <dependency> <!-- this is the dependency installed using the install jar file -->
+      <dependency> <!-- this is the dependency installed using the install-jar sub-project -->
         <groupId>com.jiminger</groupId>
         <artifactId>manually-installed-tensorflow</artifactId>
         <version>${tensorflow-version}</version>
