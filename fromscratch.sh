@@ -19,8 +19,14 @@ usage() {
     echo "           NOTE: this is NOT the tensorflow build defaut. 1.8.0 and 1.9.0 tensorflow default"
     echo "           compute caps are \"3.5,5.2\". To build these specifcy \"-c '3.5,5.2'\""
     echo "    -b:  bazel version to build tensorflow with. e.g. \"-b 0.15.2\" This defaults to $BAZEL_VERSION"
-    echo "    --container=$BASE_CONTAINER : use the named container. The default is shown."
+    echo ""
     echo "    -g:  compile TensorFlow with debug symbols."
+    echo "    --container=$BASE_CONTAINER : use the named container. The default is shown."
+    echo "    --skip-packaging: Skip the packaging step. That is, only build the tensorflow libraries but"
+    echo "       don't package them in a jar file for use with net.dempsy.util.library.NativeLivbraryLoader"
+    echo "    --local_resources availableRAM,availableCPU,availableIO : Note the underscore. The value given"
+    echo "       is passed directly to bazel (the build tool used by TensorFlow). See: "
+    echo "       https://stackoverflow.com/questions/34756370/is-there-a-way-to-limit-the-number-of-cpu-cores-bazel-uses"
     echo ""
     echo "    if MVN isn't set then the script assumes \"mvn\" is on the command line PATH"
 
@@ -31,6 +37,7 @@ usage() {
     fi
 }
 
+SKIPP=
 TENSORFLOW_VERSION=1.9.0
 TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
 BAZEL_VERSION=0.15.2
@@ -39,6 +46,8 @@ WORKING_DIRECTORY="$SCRIPTDIR"/installed/container
 #WORKING_DIRECTORY=/tmp/container
 BASE_CONTAINER="nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04"
 TENSORFLOW_DEBUG_SYMBOLS=
+LOCAL_RESOURCES_OPT=
+LOCAL_RESOURCES=
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -70,6 +79,16 @@ while [ $# -gt 0 ]; do
             shift
             shift
             ;;
+        "-sp"|"--skip-packaging")
+            SKIPP=true
+            shift
+            ;;
+        "--local_resources")
+            LOCAL_RESOURCES_OPT="--local_resources"
+            LOCAL_RESOURCES=$2
+            shift
+            shift
+            ;;
         "-help"|"--help"|"-h"|"-?")
             usage 0
             ;;
@@ -91,10 +110,6 @@ if [ "$CAN_RUN_DOCKER" = "" ]; then
 else
     echo "Assuming that you can run 'docker' without sudo since you're in the 'docker' group."
 fi
-
-cd "$WORKING_DIRECTORY"
-ABS_WORKING_DIR="$(pwd -P)"
-cd -
 
 set +e
 $SUDO type docker >/dev/null 2>&1
@@ -132,9 +147,13 @@ if [ -d "$WORKING_DIRECTORY" ]; then
 fi
 
 mkdir -p "$WORKING_DIRECTORY"
+cd "$WORKING_DIRECTORY"
+ABS_WORKING_DIR="$(pwd -P)"
+cd -
+
 cp -r container-files/* "$WORKING_DIRECTORY"
 
-$SUDO docker run --runtime=nvidia -it --name="$CONTAINER_NAME" \
+$SUDO docker run --runtime=nvidia -d --name="$CONTAINER_NAME" \
        -v "$ABS_WORKING_DIR":/tmp/files \
        -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
        -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
@@ -142,4 +161,7 @@ $SUDO docker run --runtime=nvidia -it --name="$CONTAINER_NAME" \
        -e BAZEL_VERSION=$BAZEL_VERSION \
        $BASE_CONTAINER /tmp/files/build-tensorflow.sh
 
-./package.sh
+if [ "$SKIPP" != "true" ]; then
+    ./package.sh
+fi
+
