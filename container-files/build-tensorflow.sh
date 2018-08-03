@@ -124,8 +124,8 @@ if [ "$TENSORFLOW_DEBUG_SYMBOLS" = "true" ]; then
     echo "Building TensorFlow with debug symbols."
     DEBUG_OPTIONS="--copt=-O -c dbg -c opt"
 fi
-echo "bazel build $DEBUG_OPTIONS --config=opt --config=cuda --config=monolithic //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni"
-bazel build $DEBUG_OPTIONS --config=opt --config=cuda --config=monolithic //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni
+echo "bazel build $DEBUG_OPTIONS $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES --config=opt --config=cuda --config=monolithic //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni"
+bazel build $DEBUG_OPTIONS $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES --config=opt --config=cuda --config=monolithic //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni
 
 # Build the python packages and install them
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg
