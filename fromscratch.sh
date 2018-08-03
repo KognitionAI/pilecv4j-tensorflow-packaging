@@ -27,6 +27,7 @@ usage() {
     echo "    --local_resources availableRAM,availableCPU,availableIO : Note the underscore. The value given"
     echo "       is passed directly to bazel (the build tool used by TensorFlow). See: "
     echo "       https://stackoverflow.com/questions/34756370/is-there-a-way-to-limit-the-number-of-cpu-cores-bazel-uses"
+    echo "    -bg:  Background the docker build. The can only be specified with --skip-packaging"
     echo ""
     echo "    if MVN isn't set then the script assumes \"mvn\" is on the command line PATH"
 
@@ -48,6 +49,7 @@ BASE_CONTAINER="nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04"
 TENSORFLOW_DEBUG_SYMBOLS=
 LOCAL_RESOURCES_OPT=
 LOCAL_RESOURCES=
+DOCKER_RUN_OPT="-it"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -81,6 +83,10 @@ while [ $# -gt 0 ]; do
             ;;
         "-sp"|"--skip-packaging")
             SKIPP=true
+            shift
+            ;;
+        "-bg")
+            DOCKER_RUN_OPT="-d"
             shift
             ;;
         "--local_resources")
@@ -153,7 +159,7 @@ cd -
 
 cp -r container-files/* "$WORKING_DIRECTORY"
 
-$SUDO docker run --runtime=nvidia -d --name="$CONTAINER_NAME" \
+$SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$CONTAINER_NAME" \
        -v "$ABS_WORKING_DIR":/tmp/files \
        -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
        -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
