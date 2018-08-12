@@ -22,7 +22,7 @@ if [ "$MVN" = "" ]; then
     MVN=mvn
 fi
 
-WORKING_DIRECTORY=$SCRIPTDIR/installed/container
+WORKING_DIRECTORY=/tmp/tensorflow
 MVN_TARGET=install
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -41,14 +41,12 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-CONTAINER_DIR="$WORKING_DIRECTORY"/target/bin
-
-if [ ! -f "$CONTAINER_DIR"/tensorflow.version ]; then
-    echo "ERROR: The expected artifact from the build \"$CONTAINER_DIR/tensorflow.version\" is missing. Did you execute a build using \"fromscratch.sh\"?"
+if [ ! -f "$WORKING_DIRECTORY"/tensorflow.version ]; then
+    echo "ERROR: The expected artifact from the build \"$WORKING_DIRECTORY/tensorflow.version\" is missing. Did you execute a build using \"fromscratch.sh\"?"
     exit 1
 fi
 
-TENSORFLOW_VERSION=`cat "$CONTAINER_DIR"/tensorflow.version`
+TENSORFLOW_VERSION=`cat "$WORKING_DIRECTORY"/tensorflow.version`
 
 $MVN versions:set -DnewVersion=$TENSORFLOW_VERSION
 

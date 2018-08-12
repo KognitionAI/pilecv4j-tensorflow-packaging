@@ -1,11 +1,22 @@
 #!/bin/bash
 
+# =============================================================================
+# Preamble
+# =============================================================================
 set -e
 
 # what directory is mounted. It contains other files.
 MAIN_DIR="$(dirname "$0")"
 cd "$MAIN_DIR"
 SCRIPTDIR="$(pwd -P)"
+# =============================================================================
+
+OUTPUT_DIR="$1"
+
+if [ ! -d "$OUTPUT_DIR" ]; then
+    echo "ERROR: The given working directory isn't mapped into the container correctly. It should be at \"$OUTPUT_DIR\""
+    exit 1
+fi
 
 echo "Running from \"$SCRIPTDIR\" which also contains:"
 ls "$SCRIPTDIR" | cat
@@ -16,16 +27,15 @@ set +e
 test "$TENSORFLOW_VERSION" = "" && TENSORFLOW_VERSION=1.9.0
 test "$TENSORFLOW_COMPUTE_CAPS" = "" && TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
 test "$BAZEL_VERSION" = "" && BAZEL_VERSION=0.15.2
-test "$CONTAINER_BUILD_TARGET_DIRECTORY" = "" && CONTAINER_BUILD_TARGET_DIRECTORY=$SCRIPTDIR/target/bin
 test "$BUILD_PHASES" = "" && BUILD_PHASES="dosetup,doconfigure,dobuild,docleanup"
 
 # fail on any error
 set -e
 
 if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
+    echo "Setting up the container for the build."
     # prep the directories. Might as well fail now if I can't write them
-    mkdir -p "$CONTAINER_BUILD_TARGET_DIRECTORY"
-    echo "$TENSORFLOW_VERSION" > "$CONTAINER_BUILD_TARGET_DIRECTORY"/tensorflow.version
+    echo "$TENSORFLOW_VERSION" > "$OUTPUT_DIR"/tensorflow.version
     mkdir -p /opt
 
     # These commands are transliterated from a pom.xml file (read: maven Dockerfile)
@@ -79,14 +89,21 @@ if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
     chmod +x bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
     ./bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
     rm bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
+else
+    echo "Skipping the setup."
 fi
 
 if [ "$(echo "$BUILD_PHASES" | grep doconfigure)" != "" ]; then
+    echo "Configuring TensorFlow."
     # Prepare to build tensorflow
     cd /opt/tensorflow
 
     # Set up all environment variables that allow the configure to run without being interactive
+
+    # 1.9.0 uses TF_NEED_S3. 1.10.0 uses TF_NEED_AWS
     export TF_NEED_S3=0
+    export TF_NEED_AWS=$TF_NEED_S3
+    
     export TF_NEED_GCP=0
     export TF_NEED_HDFS=0
     export TF_NEED_JEMALLOC=0
@@ -121,6 +138,8 @@ if [ "$(echo "$BUILD_PHASES" | grep doconfigure)" != "" ]; then
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/extras/CUPTI/lib64
 
     ./configure
+else
+    echo "Skipping TensorFlow configuration."
 fi
 
 if [ "$(echo "$BUILD_PHASES" | grep dobuild)" != "" ]; then
@@ -142,11 +161,14 @@ if [ "$(echo "$BUILD_PHASES" | grep dobuild)" != "" ]; then
     ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg
     pip3 install /tmp/tensorflow_pkg/tensorflow-*.whl
 
+    # prep the directories in case we restarted since the setup. 
+    echo "$TENSORFLOW_VERSION" > "$OUTPUT_DIR"/tensorflow.version
+
     # collect the results and put them outside of the container
-    cp /tmp/tensorflow_pkg/tensorflow-*.whl "$CONTAINER_BUILD_TARGET_DIRECTORY"
-    cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow.jar "$CONTAINER_BUILD_TARGET_DIRECTORY"
-    cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow_jni.so "$CONTAINER_BUILD_TARGET_DIRECTORY"
-    cp /usr/local/cuda-9.2/samples/1_Utilities/deviceQuery/deviceQuery "$CONTAINER_BUILD_TARGET_DIRECTORY"
+    cp /tmp/tensorflow_pkg/tensorflow-*.whl "$OUTPUT_DIR"
+    cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow.jar "$OUTPUT_DIR"
+    cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow_jni.so "$OUTPUT_DIR"
+    cp /usr/local/cuda-9.2/samples/1_Utilities/deviceQuery/deviceQuery "$OUTPUT_DIR"
 fi
 
 if [ "$(echo "$BUILD_PHASES" | grep docleanup)" != "" ]; then
@@ -155,3 +177,4 @@ if [ "$(echo "$BUILD_PHASES" | grep docleanup)" != "" ]; then
 
     rm -rf /tmp/tensorflow_pkg
 fi
+

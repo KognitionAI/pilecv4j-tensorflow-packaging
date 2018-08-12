@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # =============================================================================
 # Preamble
@@ -12,9 +12,11 @@ SCRIPTDIR="$(pwd -P)"
 usage() {
     echo "[MVN=/path/to/mvn/mvn] $0 [options]" 
     echo " Options:"
-    echo "    -v:  tensorflow version. e.g. \"-v 1.9.0\" This defaults to $TENSORFLOW_VERSION"
+    echo "    -v:  tensorflow version. e.g. \"-v 1.9.0\" This defaults to $DEFAULT_TENSORFLOW_VERSION"
+    echo "    -cv: cuda version. e.g. \"-cv 9.2\" This defaults to $DEFAULT_CUDA_VERSION. Note, the"
+    echo "           CUDNN version is 7 and is (currently) not command line selectable."
+    echo "    -u:  Ubuntu base image version. This defaults to $DEFAULT_UBUNTU_BASE_VERSION"
     echo "    -w:  working directory, where the final container files will be written. This defaults"
-    echo "           to a subdirectory called \"installed/container\" of the directory the script is in."
     echo "    -c:  tensorflow compute caps to build. E.g. \"-c \" This defaults to $TENSORFLOW_COMPUTE_CAPS"
     echo "           NOTE: this is NOT the tensorflow build defaut. 1.8.0 and 1.9.0 tensorflow default"
     echo "           compute caps are \"3.5,5.2\". To build these specifcy \"-c '3.5,5.2'\""
@@ -33,6 +35,7 @@ usage() {
     echo "       is passed directly to bazel (the build tool used by TensorFlow). See: "
     echo "       https://stackoverflow.com/questions/34756370/is-there-a-way-to-limit-the-number-of-cpu-cores-bazel-uses"
     echo "    -bg:  Background the docker build. The can only be specified with --skip-packaging"
+    echo "    --help:  Print this message."
     echo ""
     echo "    if MVN isn't set then the script assumes \"mvn\" is on the command line PATH"
 
@@ -52,14 +55,26 @@ removeContainer() {
     fi
 }
 
+DEFAULT_WORKING_DIRECTORY=/tmp/tensorflow
+DEFAULT_TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
+DEFAULT_TENSORFLOW_VERSION=1.10.0
+DEFAULT_BAZEL_VERSION=0.15.2
+DEFAULT_CUDA_VERSION=9.2
+DEFAULT_UBUNTU_BASE_VERSION=18.04
+
 SKIPP=
-TENSORFLOW_VERSION=1.9.0
-TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
-BAZEL_VERSION=0.15.2
-CUDA_VERSION=9.2
-WORKING_DIRECTORY="$SCRIPTDIR"/installed/container
-#WORKING_DIRECTORY=/tmp/container
-BASE_CONTAINER="nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04"
+TENSORFLOW_VERSION=$DEFAULT_TENSORFLOW_VERSION
+TENSORFLOW_COMPUTE_CAPS=$DEFAULT_TENSORFLOW_COMPUTE_CAPS
+BAZEL_VERSION=$DEFAULT_BAZEL_VERSION
+CUDA_VERSION=$DEFAULT_CUDA_VERSION
+UBUNTU_BASE_VERSION=$DEFAULT_UBUNTU_BASE_VERSION
+
+SCRIPT_DIR="$SCRIPTDIR"/container-files
+IC_SCRIPT_DIR=/tmp/files
+IC_WORKING_DIR=/tmp/output
+
+WORKING_DIRECTORY="$DEFAULT_WORKING_DIRECTORY"
+
 TENSORFLOW_DEBUG_SYMBOLS=
 LOCAL_RESOURCES_OPT=
 LOCAL_RESOURCES=
@@ -83,6 +98,16 @@ while [ $# -gt 0 ]; do
             ;;
         "-v")
             TENSORFLOW_VERSION=$2
+            shift
+            shift
+            ;;
+        "-u")
+            UBUNTU_BASE_VERSION=$2
+            shift
+            shift
+            ;;
+        "-cv")
+            CUDA_VERSION=$2
             shift
             shift
             ;;
@@ -123,6 +148,8 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+BASE_CONTAINER="nvidia/cuda:${CUDA_VERSION}-cudnn7-devel-ubuntu${UBUNTU_BASE_VERSION}"
 
 # check to make sure that if we're running the build in the background, we're skipping the packaging.
 if [ "$DOCKER_RUN_OPT" = "-d" ]; then
@@ -174,12 +201,16 @@ if [ -d "$WORKING_DIRECTORY" ]; then
     set -e
 fi
 
+# set absolute reference to the WORKING_DIRECTORY
 mkdir -p "$WORKING_DIRECTORY"
 cd "$WORKING_DIRECTORY"
 ABS_WORKING_DIR="$(pwd -P)"
-cd -
+cd - >/dev/null
 
-cp -r container-files/* "$WORKING_DIRECTORY"
+# set absolute reference to the SCRIPT_DIR
+cd "$SCRIPT_DIR"
+ABS_SCRIPT_DIR="$(pwd -P)"
+cd - >/dev/null
 
 BUILD_IMAGE="$CONTAINER_NAME"
 BUILD_CONTAINER="$CONTAINER_NAME"ing
@@ -191,7 +222,8 @@ if [ "$JUST_BUILD" != "true" ]; then
     removeContainer "$CONTAINER_NAME"
 
     $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$CONTAINER_NAME" \
-          -v "$ABS_WORKING_DIR":/tmp/files \
+          -v "$ABS_SCRIPT_DIR":"$IC_SCRIPT_DIR" \
+          -v "$ABS_WORKING_DIR":"$IC_WORKING_DIR" \
           -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
           -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
           -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
@@ -199,7 +231,7 @@ if [ "$JUST_BUILD" != "true" ]; then
           -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
           -e BAZEL_VERSION=$BAZEL_VERSION \
           -e BUILD_PHASES="dosetup" \
-          $BASE_CONTAINER /tmp/files/build-tensorflow.sh
+          $BASE_CONTAINER "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR"
 
     # now we will build an image from the current container state.
     echo "Saving off prepared container..."
@@ -215,7 +247,8 @@ fi
 
 removeContainer "$BUILD_CONTAINER"
 $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
-      -v "$ABS_WORKING_DIR":/tmp/files \
+      -v "$ABS_SCRIPT_DIR":"$IC_SCRIPT_DIR" \
+      -v "$ABS_WORKING_DIR":"$IC_WORKING_DIR" \
       -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
       -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
       -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
@@ -223,9 +256,9 @@ $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
       -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
       -e BAZEL_VERSION=$BAZEL_VERSION \
       -e BUILD_PHASES="doconfigure,dobuild,docleanup" \
-      "$BUILD_IMAGE" /tmp/files/build-tensorflow.sh
+      "$BUILD_IMAGE" "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR"
 
 if [ "$SKIPP" != "true" ]; then
-    ./package.sh
+    ./package.sh -w "$WORKING_DIRECTORY"
 fi
 

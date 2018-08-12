@@ -11,8 +11,8 @@
 
     <!-- This is defaulted to the same value from fromscratch.sh but is overridden by package.sh -->
     <!-- It's also relative to the child projects where it's used -->
-    <fromscratch.working.dir>../installed/container</fromscratch.working.dir>
-    <tensorflow.artifacts.directory>${fromscratch.working.dir}/target/bin</tensorflow.artifacts.directory>
+    <fromscratch.working.dir>/tmp/tensorflow</fromscratch.working.dir>
+    <tensorflow.artifacts.directory>${fromscratch.working.dir}</tensorflow.artifacts.directory>
 
     <tf-packaging.distribution.repo.id>ossrh</tf-packaging.distribution.repo.id>
     <tf-packaging.distribution.repo.url>https://oss.sonatype.org/content/repositories/snapshots/</tf-packaging.distribution.repo.url>
