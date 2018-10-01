@@ -89,6 +89,11 @@ if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
     chmod +x bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
     ./bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
     rm bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
+
+    # Needed for (apparently) 1.10 and (certainly) 1.11
+    pip3 install keras_applications==1.0.4 --no-deps
+    pip3 install keras_preprocessing==1.0.2 --no-deps
+    pip3 install h5py==2.8.0
 else
     echo "Skipping the setup."
 fi
@@ -136,6 +141,9 @@ if [ "$(echo "$BUILD_PHASES" | grep doconfigure)" != "" ]; then
 
     # Help the linker
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/extras/CUPTI/lib64
+
+    # added in 1.11
+    export TF_NEED_NGRAPH=0
 
     ./configure
 else
