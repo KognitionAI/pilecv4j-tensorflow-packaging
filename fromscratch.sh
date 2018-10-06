@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # =============================================================================
 # Preamble
@@ -57,7 +57,7 @@ removeContainer() {
 
 DEFAULT_WORKING_DIRECTORY=/tmp/tensorflow
 DEFAULT_TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
-DEFAULT_TENSORFLOW_VERSION=1.10.0
+DEFAULT_TENSORFLOW_VERSION=1.11.0
 DEFAULT_BAZEL_VERSION=0.15.2
 DEFAULT_CUDA_VERSION=9.2
 DEFAULT_UBUNTU_BASE_VERSION=18.04
@@ -162,14 +162,19 @@ fi
 
 CONTAINER_NAME=tensorflow_${TENSORFLOW_VERSION}_build
 
-# Are we in the docker group?
-CAN_RUN_DOCKER="$(groups | grep docker)"
-
+# Can we run docker
 SUDO=
-if [ "$CAN_RUN_DOCKER" = "" ]; then
-    SUDO=sudo
-else
-    echo "Assuming that you can run 'docker' without sudo since you're in the 'docker' group."
+if [ "$(whoami)" != "root" ]; then
+    # Are we in the docker group?
+    set +e
+    CAN_RUN_DOCKER="$(groups | grep docker)"
+    set -e
+
+    if [ "$CAN_RUN_DOCKER" = "" ]; then
+	SUDO=sudo
+    else
+	echo "Assuming that you can run 'docker' without sudo since you're in the 'docker' group."
+    fi
 fi
 
 set +e
