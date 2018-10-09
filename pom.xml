@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-  <groupId>com.jiminger</groupId>
+  <groupId>ai.kognition.pilecv4j</groupId>
   <artifactId>tensorflow-packaging</artifactId>
   <version>0</version>
   <packaging>pom</packaging>
@@ -28,7 +28,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency> <!-- this is the dependency installed using the install-jar sub-project -->
-        <groupId>com.jiminger</groupId>
+        <groupId>ai.kognition.pilecv4j</groupId>
         <artifactId>manually-installed-tensorflow</artifactId>
         <version>${tensorflow-version}</version>
       </dependency>

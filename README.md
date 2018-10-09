@@ -1,6 +1,6 @@
 # Tensorflow build and package for java
 
-This project will allow you to build from scratch, package into a jar file, and install into the local maven repository, a [TensorFlow](https://www.tensorflow.org/) distribution's Java extensions built for the GPU. It will also package the `JNI` native libraries, along with the entire native [TensorFlow](https://www.tensorflow.org/) libraries, into a jar file that can be retrieved using `com.jiminger.utils.NativeLibrary`.
+This project will allow you to build from scratch, package into a jar file, and install into the local maven repository, a [TensorFlow](https://www.tensorflow.org/) distribution's Java extensions built for the GPU. It will also package the `JNI` native libraries, along with the entire native [TensorFlow](https://www.tensorflow.org/) libraries, into a jar file that can be retrieved using `ai.kognition.pilecv4j.utils.NativeLibrary`.
 
 __* Note: This currently ONLY builds a 64-bit linux (Ubuntu) install using [Docker](https://www.docker.com/). *__
 
