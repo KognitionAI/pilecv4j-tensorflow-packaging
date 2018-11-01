@@ -15,6 +15,7 @@ usage() {
     echo ""
     echo "  -w        : The working directory given to fromscratch.sh. This defaults."
     echo "  --deploy  : do a \"mvn deploy\" as part of building."
+    echo "  --offline : Pass -O to maven."
     exit 1
 }
 
@@ -24,6 +25,7 @@ fi
 
 WORKING_DIRECTORY=/tmp/tensorflow
 MVN_TARGET=install
+MVN_OFFLINE=
 while [ $# -gt 0 ]; do
     case "$1" in
         "-w")
@@ -33,6 +35,10 @@ while [ $# -gt 0 ]; do
             ;;
         "--deploy")
             MVN_TARGET=deploy
+            shift
+            ;;
+        "--offline")
+            MVN_OFFLINE=-o
             shift
             ;;
         *)
@@ -48,9 +54,9 @@ fi
 
 TENSORFLOW_VERSION=`cat "$WORKING_DIRECTORY"/tensorflow.version`
 
-$MVN versions:set -DnewVersion=$TENSORFLOW_VERSION
+$MVN $MVN_OFFLINE versions:set -DnewVersion=$TENSORFLOW_VERSION
 
-$MVN -Dfromscratch.working.dir="$WORKING_DIRECTORY" clean $MVN_TARGET
+$MVN $MVN_OFFLINE -Dfromscratch.working.dir="$WORKING_DIRECTORY" clean $MVN_TARGET
 
-$MVN versions:set -DnewVersion=0
+$MVN $MVN_OFFLINE versions:set -DnewVersion=0
 

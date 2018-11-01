@@ -22,6 +22,7 @@ usage() {
     echo "           compute caps are \"3.5,5.2\". To build these specifcy \"-c '3.5,5.2'\""
     echo "    -b:  bazel version to build tensorflow with. e.g. \"-b 0.15.2\" This defaults to $BAZEL_VERSION"
     echo "    --deploy: perform a \"mvn deploy\" rather than just a \"mvn install\""
+    echo "    --offline: Pass -O to maven."
     echo ""
     echo "    -g:  compile TensorFlow with debug symbols."
     echo "    --container=$BASE_CONTAINER : use the named container. The default is shown."
@@ -82,6 +83,7 @@ LOCAL_RESOURCES=
 DOCKER_RUN_OPT=
 JUST_BUILD=
 DEPLOY_ME=
+OFFLINE=
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -129,6 +131,10 @@ while [ $# -gt 0 ]; do
             ;;
         "--deploy")
             DEPLOY_ME="--deploy"
+            shift
+            ;;
+        "--offline")
+            OFFLINE=--offline
             shift
             ;;
         "-bg")
@@ -270,6 +276,6 @@ $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
       "$BUILD_IMAGE" "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR"
 
 if [ "$SKIPP" != "true" ]; then
-    ./package.sh -w "$WORKING_DIRECTORY" $DEPLOY_ME
+    ./package.sh $OFFLINE -w "$WORKING_DIRECTORY" $DEPLOY_ME
 fi
 
