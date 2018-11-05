@@ -27,4 +27,5 @@ target
 .fbExcludeFilterFile
 
 *.versionsBackup
+pom.xml.dockerBuild
 installed

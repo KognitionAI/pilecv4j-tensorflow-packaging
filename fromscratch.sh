@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # =============================================================================
 # Preamble
@@ -10,11 +10,12 @@ SCRIPTDIR="$(pwd -P)"
 # =============================================================================
 
 usage() {
+    BASE_CONTAINER="nvidia/cuda:${DEFAULT_CUDA_VERSION}-cudnn7-devel-ubuntu${DEFAULT_UBUNTU_BASE_VERSION}"
     echo "[MVN=/path/to/mvn/mvn] $0 [options]" 
     echo " Options:"
     echo "    -v:  tensorflow version. e.g. \"-v 1.9.0\" This defaults to $DEFAULT_TENSORFLOW_VERSION"
     echo "    -cv: cuda version. e.g. \"-cv 9.2\" This defaults to $DEFAULT_CUDA_VERSION. Note, the"
-    echo "           CUDNN version is 7 and is (currently) not command line selectable."
+    echo "           CUDNN version is determined by examining the \"cudnn.h\" header file."
     echo "    -u:  Ubuntu base image version. This defaults to $DEFAULT_UBUNTU_BASE_VERSION"
     echo "    -w:  working directory, where the final container files will be written. This defaults"
     echo "    -c:  tensorflow compute caps to build. E.g. \"-c \" This defaults to $TENSORFLOW_COMPUTE_CAPS"
@@ -85,6 +86,7 @@ JUST_BUILD=
 DEPLOY_ME=
 OFFLINE=
 
+BASE_CONTAINER=
 while [ $# -gt 0 ]; do
     case "$1" in
         --container=*)
@@ -161,7 +163,9 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-BASE_CONTAINER="nvidia/cuda:${CUDA_VERSION}-cudnn7-devel-ubuntu${UBUNTU_BASE_VERSION}"
+if [ "$BASE_CONTAINER" = "" ]; then
+    BASE_CONTAINER="nvidia/cuda:${CUDA_VERSION}-cudnn7-devel-ubuntu${UBUNTU_BASE_VERSION}"
+fi
 
 # check to make sure that if we're running the build in the background, we're skipping the packaging.
 if [ "$DOCKER_RUN_OPT" = "-d" ]; then
@@ -170,7 +174,6 @@ if [ "$DOCKER_RUN_OPT" = "-d" ]; then
         usage
     fi
 fi
-
 
 CONTAINER_NAME=tensorflow_${TENSORFLOW_VERSION}_build
 
@@ -212,7 +215,7 @@ if [ -d "$WORKING_DIRECTORY" ]; then
     set +e
     rm -rf "$WORKING_DIRECTORY" >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-        echo "Need to remove the working directory using sudo."
+        echo "Need to remove the working directory using sudo." | tee -a "$WORKING_DIRECTORY"/build.out
         sudo rm -rf "$WORKING_DIRECTORY" >/dev/null 2>&1
     fi
     set -e
@@ -223,6 +226,12 @@ mkdir -p "$WORKING_DIRECTORY"
 cd "$WORKING_DIRECTORY"
 ABS_WORKING_DIR="$(pwd -P)"
 cd - >/dev/null
+
+# Remove the build.out file and recreate it empty
+if [ -f "$WORKING_DIRECTORY"/build.out ]; then
+    rm "$WORKING_DIRECTORY"/build.out
+fi
+touch "$WORKING_DIRECTORY"/build.out
 
 # set absolute reference to the SCRIPT_DIR
 cd "$SCRIPT_DIR"
@@ -235,7 +244,6 @@ BUILD_CONTAINER="$CONTAINER_NAME"ing
 if [ "$JUST_BUILD" != "true" ]; then
     # if there's a saved off prevous build prep, then we need to remove
     # that container.
-    removeContainer "$BUILD_CONTAINER"
     removeContainer "$CONTAINER_NAME"
 
     $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$CONTAINER_NAME" \
@@ -248,17 +256,17 @@ if [ "$JUST_BUILD" != "true" ]; then
           -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
           -e BAZEL_VERSION=$BAZEL_VERSION \
           -e BUILD_PHASES="dosetup" \
-          $BASE_CONTAINER "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR"
+          $BASE_CONTAINER "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR" | tee -a "$WORKING_DIRECTORY"/build.out
 
     # now we will build an image from the current container state.
-    echo "Saving off prepared container..."
+    echo "Saving off prepared container..." | tee -a "$WORKING_DIRECTORY"/build.out
     $SUDO docker commit "$CONTAINER_NAME" "$BUILD_IMAGE"
-    echo "...done."
+    echo "...done." | tee -a "$WORKING_DIRECTORY"/build.out
 fi
 
 # check if the image exists
 if [ "$(docker images | egrep "^$BUILD_IMAGE ")" = "" ]; then
-    echo "ERROR: The prepared image for building isn't available. Please run without the --just-build flag"
+    echo "ERROR: The prepared image for building isn't available. Please run without the --just-build flag" | tee -a "$WORKING_DIRECTORY"/build.out
     exit 1
 fi
 
@@ -272,10 +280,23 @@ $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
       -e LOCAL_RESOURCES=$LOCAL_RESOURCES \
       -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
       -e BAZEL_VERSION=$BAZEL_VERSION \
-      -e BUILD_PHASES="doconfigure,dobuild,docleanup" \
-      "$BUILD_IMAGE" "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR"
+      -e BUILD_PHASES="doconfigure,dobuild-python,docleanup" \
+      "$BUILD_IMAGE" "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR" | tee -a "$WORKING_DIRECTORY"/build.out
+
+removeContainer "$BUILD_CONTAINER"
+$SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
+      -v "$ABS_SCRIPT_DIR":"$IC_SCRIPT_DIR" \
+      -v "$ABS_WORKING_DIR":"$IC_WORKING_DIR" \
+      -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
+      -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
+      -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
+      -e LOCAL_RESOURCES=$LOCAL_RESOURCES \
+      -e LOCAL_RESOURCES_OPT=$LOCAL_RESOURCES_OPT \
+      -e BAZEL_VERSION=$BAZEL_VERSION \
+      -e BUILD_PHASES="doconfigure,dobuild-java,docleanup" \
+      "$BUILD_IMAGE" "$IC_SCRIPT_DIR"/build-tensorflow.sh "$IC_WORKING_DIR" | tee -a "$WORKING_DIRECTORY"/build.out
 
 if [ "$SKIPP" != "true" ]; then
-    ./package.sh $OFFLINE -w "$WORKING_DIRECTORY" $DEPLOY_ME
+    ./package.sh $OFFLINE -w "$WORKING_DIRECTORY" $DEPLOY_ME | tee -a "$WORKING_DIRECTORY"/build.out
 fi
 
