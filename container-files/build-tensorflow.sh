@@ -22,7 +22,6 @@ echo "Running from \"$SCRIPTDIR\" which also contains:"
 ls "$SCRIPTDIR" | cat
 set +e
 
-
 # pertinent environment variables
 test "$TENSORFLOW_VERSION" = "" && TENSORFLOW_VERSION=1.9.0
 test "$TENSORFLOW_COMPUTE_CAPS" = "" && TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
@@ -32,10 +31,14 @@ test "$BUILD_PHASES" = "" && BUILD_PHASES="dosetup,doconfigure,dobuild,docleanup
 # fail on any error
 set -e
 
+echo "$TENSORFLOW_VERSION" > "$OUTPUT_DIR"/tensorflow.version
+
 if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
-    echo "Setting up the container for the build."
+    echo "======================================================="
+    echo ">>>>> Setting up the container for the build."
+    echo "======================================================="
+
     # prep the directories. Might as well fail now if I can't write them
-    echo "$TENSORFLOW_VERSION" > "$OUTPUT_DIR"/tensorflow.version
     mkdir -p /opt
 
     # These commands are transliterated from a pom.xml file (read: maven Dockerfile)
@@ -44,8 +47,9 @@ if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
     test "`ldconfig -p | grep libcuda.so`" != ""
     
     # Install dependencies
-    apt-get update
+    apt-get update -y
     apt-get upgrade -y
+    apt-get update -y
     apt-get install -y git wget
 
     # before we go too far, let's make sure we can get the specified tensorflow
@@ -58,7 +62,7 @@ if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
 
     # make sure we can pull the bazel version specified
     cd /tmp
-    echo "Getting bazel $BAZEL_VERSION"
+    echo ">>>>> Getting bazel $BAZEL_VERSION"
     wget -q https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
     cd -
 
@@ -67,39 +71,35 @@ if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
     apt-get install -y openjdk-8-jdk
     apt-get install -y python3-numpy python3-dev python3-pip python3-wheel
 
-    # Build the sample cuda program "deviceQuery"
-    cd /
-    tar -xvf "$SCRIPTDIR"/device_query.tar.gz
-    #rm "$SCRIPTDIR"/device_query.tar.gz <- don't remove, this is a mounted file
-    cd /usr/local/cuda-9.2/samples/1_Utilities/deviceQuery/
-    make
-    ./deviceQuery
-
     # Hack make python use python3
     ln -s /usr/bin/python3 /usr/bin/python
 
     # Hack, fix assumptions tensorflow build makes about NCCL installation
+    echo ">>>>> Fixing NCCL to comply with tensorflow assumptions."
     mkdir /usr/local/cuda-9.2/nccl
     ln -s /usr/include /usr/local/cuda-9.2/nccl/include
     ln -s /usr/lib/x86_64-linux-gnu /usr/local/cuda-9.2/nccl/lib
     cp "$SCRIPTDIR"/NCCL-SLA.txt /usr/local/cuda-9.2/nccl
 
     # Install bazel using the installer
+    echo ">>>>> Installing Bazel."
     cd /tmp
     chmod +x bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
     ./bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
     rm bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
 
-    # Needed for (apparently) 1.10 and (certainly) 1.11
-    pip3 install keras_applications==1.0.4 --no-deps
-    pip3 install keras_preprocessing==1.0.2 --no-deps
-    pip3 install h5py==2.8.0
+    pip3 install six mock
+    pip3 install keras_applications==1.0.6 --no-deps
+    pip3 install keras_preprocessing==1.0.5 --no-deps
+    pip3 install h5py
 else
-    echo "Skipping the setup."
+    echo ">>>>> Skipping the setup."
 fi
 
 if [ "$(echo "$BUILD_PHASES" | grep doconfigure)" != "" ]; then
-    echo "Configuring TensorFlow."
+    echo "======================================================="
+    echo ">>>>> Configuring TensorFlow."
+    echo "======================================================="
     # Prepare to build tensorflow
     cd /opt/tensorflow
 
@@ -129,8 +129,24 @@ if [ "$(echo "$BUILD_PHASES" | grep doconfigure)" != "" ]; then
     export TF_CUDA_VERSION=9.2
     export CUDA_PATH=/usr/local/cuda-9.2
     export CUDA_TOOLKIT_PATH="$CUDA_PATH"
-    export TF_CUDNN_VERSION=7.1
+
+    # Determine the CUDNN version. First find the header file.
+    TMPTF_CUDNN_INCLUDE="$(find / -name cudnn.h)"
+    if [ "$TMPTF_CUDNN_INCLUDE" = "" ]; then  
+        echo "ERROR: Couldn't find CUDNN (by searching the file system for cudnn.h)."
+        exit 1
+    elif [ $(echo "$TMPTF_CUDNN_INCLUDE" | wc -l) -gt 1 ]; then
+        echo "ERROR: Found too many CUDNN installations:"
+        echo "$TMPTF_CUDNN_INCLUDE"
+        exit 1
+    fi
+    TMPTF_CUDNN_MAJOR="$(grep "define CUDNN_MAJOR " "$TMPTF_CUDNN_INCLUDE" | sed -e "s/^.*define CUDNN_MAJOR //1")"
+    TMPTF_CUDNN_MINOR="$(grep "define CUDNN_MINOR " "$TMPTF_CUDNN_INCLUDE" | sed -e "s/^.*define CUDNN_MINOR //1")"
+    export TF_CUDNN_VERSION=$TMPTF_CUDNN_MAJOR.$TMPTF_CUDNN_MINOR
+    echo ">>>>> CUDNN version being built against: $TF_CUDNN_VERSION"
+    
     export CUDNN_INSTALL_PATH="$CUDA_TOOLKIT_PATH"
+    
     export TF_NCCL_VERSION=2.2.13
     export NCCL_INSTALL_PATH="$CUDA_TOOLKIT_PATH"/nccl
     export TF_CUDA_COMPUTE_CAPABILITIES="$TENSORFLOW_COMPUTE_CAPS"
@@ -147,39 +163,66 @@ if [ "$(echo "$BUILD_PHASES" | grep doconfigure)" != "" ]; then
 
     ./configure
 else
-    echo "Skipping TensorFlow configuration."
+    echo ">>>>> Skipping TensorFlow configuration."
 fi
 
-if [ "$(echo "$BUILD_PHASES" | grep dobuild)" != "" ]; then
+if [ "$(echo "$BUILD_PHASES" | grep dobuild-python)" != "" ]; then
+    echo "======================================================="
+    echo "Building whl file for python 3"
+    echo "======================================================="
+
     # "--copt=-O -c dbg -c opt" <- these are debug options
     DEBUG_OPTIONS=
     if [ "$TENSORFLOW_DEBUG_SYMBOLS" = "true" ]; then
         echo "Building TensorFlow with debug symbols."
         DEBUG_OPTIONS="--copt=-O -c dbg -c opt"
     fi
-    echo "bazel build $DEBUG_OPTIONS $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES --config=opt --config=cuda --config=monolithic //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni"
 
-    if [ "$JUST_PREPARE_IMAGE" ]; then
-        exit 0
-    fi
+    echo ">>>>> Running bazel:"
+    echo "bazel build $DEBUG_OPTIONS --config=opt --config=cuda $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES //tensorflow/tools/pip_package:build_pip_package"
 
-    bazel build $DEBUG_OPTIONS --config=opt --config=cuda --config=monolithic $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES //tensorflow/tools/pip_package:build_pip_package //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni
+    bazel build $DEBUG_OPTIONS --config=opt --config=cuda $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES //tensorflow/tools/pip_package:build_pip_package
 
     # Build the python packages and install them
+    echo ">>>>> Packaging python wheel file."
     ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg
+
+    echo ">>>>> Installing the wheel file as a test."
     pip3 install /tmp/tensorflow_pkg/tensorflow-*.whl
 
-    # prep the directories in case we restarted since the setup. 
-    echo "$TENSORFLOW_VERSION" > "$OUTPUT_DIR"/tensorflow.version
+    # collect the results and put them outside of the container
+    echo ">>>>> Exporting the wheel file."
+    cp /tmp/tensorflow_pkg/tensorflow-*.whl "$OUTPUT_DIR"
+fi
+
+if [ "$(echo "$BUILD_PHASES" | grep dobuild-java)" != "" ]; then
+    echo "======================================================="
+    echo "Building monolithic jar file for java."
+    echo "======================================================="
+
+    # "--copt=-O -c dbg -c opt" <- these are debug options
+    DEBUG_OPTIONS=
+    if [ "$TENSORFLOW_DEBUG_SYMBOLS" = "true" ]; then
+        echo "Building TensorFlow with debug symbols."
+        DEBUG_OPTIONS="--copt=-O -c dbg -c opt"
+    fi
+
+    echo ">>>>> Running bazel:"
+    echo "bazel build $DEBUG_OPTIONS --config=opt --config=cuda --config=monolithic $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni"
+
+    bazel build $DEBUG_OPTIONS --config=opt --config=cuda --config=monolithic $LOCAL_RESOURCES_OPT $LOCAL_RESOURCES //tensorflow/java:tensorflow //tensorflow/java:libtensorflow_jni
 
     # collect the results and put them outside of the container
-    cp /tmp/tensorflow_pkg/tensorflow-*.whl "$OUTPUT_DIR"
+    echo ">>>>> Exporting java artifacts."
     cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow.jar "$OUTPUT_DIR"
     cp /opt/tensorflow/bazel-bin/tensorflow/java/libtensorflow_jni.so "$OUTPUT_DIR"
-    cp /usr/local/cuda-9.2/samples/1_Utilities/deviceQuery/deviceQuery "$OUTPUT_DIR"
 fi
 
 if [ "$(echo "$BUILD_PHASES" | grep docleanup)" != "" ]; then
+    echo "======================================================="
+    echo "Cleaning up the build image (for some reason)."
+    echo "======================================================="
+
     apt-get clean
     apt-get autoclean
 
