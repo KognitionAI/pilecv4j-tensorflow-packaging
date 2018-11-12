@@ -10,7 +10,6 @@ SCRIPTDIR="$(pwd -P)"
 # =============================================================================
 
 usage() {
-    BASE_CONTAINER="nvidia/cuda:${DEFAULT_CUDA_VERSION}-cudnn7-devel-ubuntu${DEFAULT_UBUNTU_BASE_VERSION}"
     echo "[MVN=/path/to/mvn/mvn] $0 [options]" 
     echo " Options:"
     echo "    -v:  tensorflow version. e.g. \"-v 1.9.0\" This defaults to $DEFAULT_TENSORFLOW_VERSION"
@@ -18,15 +17,16 @@ usage() {
     echo "           CUDNN version is determined by examining the \"cudnn.h\" header file."
     echo "    -u:  Ubuntu base image version. This defaults to $DEFAULT_UBUNTU_BASE_VERSION"
     echo "    -w:  working directory, where the final container files will be written. This defaults"
+    echo "           to \"$DEFAULT_WORKING_DIRECTORY\""
     echo "    -c:  tensorflow compute caps to build. E.g. \"-c \" This defaults to $TENSORFLOW_COMPUTE_CAPS"
     echo "           NOTE: this is NOT the tensorflow build defaut. 1.8.0 and 1.9.0 tensorflow default"
     echo "           compute caps are \"3.5,5.2\". To build these specifcy \"-c '3.5,5.2'\""
     echo "    -b:  bazel version to build tensorflow with. e.g. \"-b 0.15.2\" This defaults to $BAZEL_VERSION"
     echo "    --deploy: perform a \"mvn deploy\" rather than just a \"mvn install\""
-    echo "    --offline: Pass -O to maven."
+    echo "    --offline: Pass -o to maven."
     echo ""
     echo "    -g:  compile TensorFlow with debug symbols."
-    echo "    --container=$BASE_CONTAINER : use the named container. The default is shown."
+    echo "    --container=$DEFAULT_BASE_CONTAINER : use the named container. The default is shown."
     echo "    --just-build: This will assume the docker container has already been prepped and an image of the"
     echo "       preped system has been created. This is done automatically by the script so you're safe using this"
     echo "       if you've already run the build once or even cancelled it after the setup. If you're playing with"
@@ -64,6 +64,7 @@ DEFAULT_TENSORFLOW_VERSION=1.11.0
 DEFAULT_BAZEL_VERSION=0.15.2
 DEFAULT_CUDA_VERSION=9.2
 DEFAULT_UBUNTU_BASE_VERSION=18.04
+DEFAULT_BASE_CONTAINER="nvidia/cuda:${DEFAULT_CUDA_VERSION}-cudnn7-devel-ubuntu${DEFAULT_UBUNTU_BASE_VERSION}"
 
 SKIPP=
 TENSORFLOW_VERSION=$DEFAULT_TENSORFLOW_VERSION
@@ -274,6 +275,7 @@ removeContainer "$BUILD_CONTAINER"
 $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
       -v "$ABS_SCRIPT_DIR":"$IC_SCRIPT_DIR" \
       -v "$ABS_WORKING_DIR":"$IC_WORKING_DIR" \
+      -e TENSORFLOW_CUDA_VERSION=$CUDA_VERSION \
       -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
       -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
       -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \
@@ -287,6 +289,7 @@ removeContainer "$BUILD_CONTAINER"
 $SUDO docker run --runtime=nvidia $DOCKER_RUN_OPT --name="$BUILD_CONTAINER" \
       -v "$ABS_SCRIPT_DIR":"$IC_SCRIPT_DIR" \
       -v "$ABS_WORKING_DIR":"$IC_WORKING_DIR" \
+      -e TENSORFLOW_CUDA_VERSION=$CUDA_VERSION \
       -e TENSORFLOW_DEBUG_SYMBOLS=$TENSORFLOW_DEBUG_SYMBOLS \
       -e TENSORFLOW_VERSION=$TENSORFLOW_VERSION \
       -e TENSORFLOW_COMPUTE_CAPS=$TENSORFLOW_COMPUTE_CAPS \

@@ -15,7 +15,7 @@ usage() {
     echo ""
     echo "  -w        : The working directory given to fromscratch.sh. This defaults."
     echo "  --deploy  : do a \"mvn deploy\" as part of building."
-    echo "  --offline : Pass -O to maven."
+    echo "  --offline : Pass -o to maven."
     exit 1
 }
 

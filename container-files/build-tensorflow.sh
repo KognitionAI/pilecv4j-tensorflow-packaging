@@ -27,11 +27,13 @@ test "$TENSORFLOW_VERSION" = "" && TENSORFLOW_VERSION=1.9.0
 test "$TENSORFLOW_COMPUTE_CAPS" = "" && TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
 test "$BAZEL_VERSION" = "" && BAZEL_VERSION=0.15.2
 test "$BUILD_PHASES" = "" && BUILD_PHASES="dosetup,doconfigure,dobuild,docleanup"
+test "$TENSORFLOW_CUDA_VERSION" = "" && TENSORFLOW_CUDA_VERSION="9.2"
 
 # fail on any error
 set -e
 
 echo "$TENSORFLOW_VERSION" > "$OUTPUT_DIR"/tensorflow.version
+echo "$TENSORFLOW_CUDA_VERSION" > "$OUTPUT_DIR"/cuda.version
 
 if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
     echo "======================================================="
@@ -76,10 +78,10 @@ if [ "$(echo "$BUILD_PHASES" | grep dosetup)" != "" ]; then
 
     # Hack, fix assumptions tensorflow build makes about NCCL installation
     echo ">>>>> Fixing NCCL to comply with tensorflow assumptions."
-    mkdir /usr/local/cuda-9.2/nccl
-    ln -s /usr/include /usr/local/cuda-9.2/nccl/include
-    ln -s /usr/lib/x86_64-linux-gnu /usr/local/cuda-9.2/nccl/lib
-    cp "$SCRIPTDIR"/NCCL-SLA.txt /usr/local/cuda-9.2/nccl
+    mkdir /usr/local/cuda-$TENSORFLOW_CUDA_VERSION/nccl
+    ln -s /usr/include /usr/local/cuda-$TENSORFLOW_CUDA_VERSION/nccl/include
+    ln -s /usr/lib/x86_64-linux-gnu /usr/local/cuda-$TENSORFLOW_CUDA_VERSION/nccl/lib
+    cp "$SCRIPTDIR"/NCCL-SLA.txt /usr/local/cuda-$TENSORFLOW_CUDA_VERSION/nccl
 
     # Install bazel using the installer
     echo ">>>>> Installing Bazel."
@@ -126,8 +128,8 @@ if [ "$(echo "$BUILD_PHASES" | grep doconfigure)" != "" ]; then
     export TF_NEED_VERBS=0
     export TF_NEED_OPENCL_SYCL=0
     export TF_NEED_CUDA=1
-    export TF_CUDA_VERSION=9.2
-    export CUDA_PATH=/usr/local/cuda-9.2
+    export TF_CUDA_VERSION=$TENSORFLOW_CUDA_VERSION
+    export CUDA_PATH=/usr/local/cuda-$TF_CUDA_VERSION
     export CUDA_TOOLKIT_PATH="$CUDA_PATH"
 
     # Determine the CUDNN version. First find the header file.
