@@ -21,7 +21,7 @@ usage() {
     echo "    -c:  tensorflow compute caps to build. E.g. \"-c \" This defaults to $TENSORFLOW_COMPUTE_CAPS"
     echo "           NOTE: this is NOT the tensorflow build defaut. 1.8.0 and 1.9.0 tensorflow default"
     echo "           compute caps are \"3.5,5.2\". To build these specifcy \"-c '3.5,5.2'\""
-    echo "    -b:  bazel version to build tensorflow with. e.g. \"-b 0.15.2\" This defaults to $BAZEL_VERSION"
+    echo "    -b:  bazel version to build tensorflow with. e.g. \"-b $DEFAULT_BAZEL_VERSION\" This defaults to $DEFAULT_BAZEL_VERSION"
     echo "    --deploy: perform a \"mvn deploy\" rather than just a \"mvn install\""
     echo "    --offline: Pass -o to maven."
     echo ""
@@ -61,7 +61,7 @@ removeContainer() {
 DEFAULT_WORKING_DIRECTORY=/tmp/tensorflow
 DEFAULT_TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
 DEFAULT_TENSORFLOW_VERSION=1.11.0
-DEFAULT_BAZEL_VERSION=0.15.2
+DEFAULT_BAZEL_VERSION=0.19.1
 DEFAULT_CUDA_VERSION=9.2
 DEFAULT_UBUNTU_BASE_VERSION=18.04
 DEFAULT_BASE_CONTAINER="nvidia/cuda:${DEFAULT_CUDA_VERSION}-cudnn7-devel-ubuntu${DEFAULT_UBUNTU_BASE_VERSION}"
