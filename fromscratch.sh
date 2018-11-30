@@ -4,13 +4,13 @@
 # Preamble
 # =============================================================================
 set -e
-MAIN_DIR="$(dirname "$0")"
+MAIN_DIR="$(dirname "$BASH_SOURCE")"
 cd "$MAIN_DIR"
 SCRIPTDIR="$(pwd -P)"
 # =============================================================================
 
 usage() {
-    echo "[MVN=/path/to/mvn/mvn] $0 [options]" 
+    echo "[MVN=/path/to/mvn/mvn] $BASH_SOURCE [options]" 
     echo " Options:"
     echo "    -v:  tensorflow version. e.g. \"-v 1.9.0\" This defaults to $DEFAULT_TENSORFLOW_VERSION"
     echo "    -cv: cuda version. e.g. \"-cv 9.2\" This defaults to $DEFAULT_CUDA_VERSION. Note, the"

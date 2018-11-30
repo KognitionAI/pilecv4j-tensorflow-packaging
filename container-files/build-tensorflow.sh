@@ -6,7 +6,7 @@
 set -e
 
 # what directory is mounted. It contains other files.
-MAIN_DIR="$(dirname "$0")"
+MAIN_DIR="$(dirname "$BASH_SOURCE")"
 cd "$MAIN_DIR"
 SCRIPTDIR="$(pwd -P)"
 # =============================================================================
