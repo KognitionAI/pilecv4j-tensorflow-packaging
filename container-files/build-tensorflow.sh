@@ -27,7 +27,7 @@ test "$TENSORFLOW_VERSION" = "" && TENSORFLOW_VERSION=1.9.0
 test "$TENSORFLOW_COMPUTE_CAPS" = "" && TENSORFLOW_COMPUTE_CAPS="5.0,6.1"
 test "$BAZEL_VERSION" = "" && BAZEL_VERSION=0.19.1
 test "$BUILD_PHASES" = "" && BUILD_PHASES="dosetup,doconfigure,dobuild,docleanup"
-test "$TENSORFLOW_CUDA_VERSION" = "" && TENSORFLOW_CUDA_VERSION="9.2"
+test "$TENSORFLOW_CUDA_VERSION" = "" && TENSORFLOW_CUDA_VERSION="10.1"
 
 # fail on any error
 set -e
